@@ -190,7 +190,7 @@
       const runwayData = ref(null);
 
       /**
-       * 🔧 延伸線段 5 倍長度
+       * 🔧 延伸線段 8 倍長度
        * @param {Array} coordinates - LineString 座標陣列
        * @returns {Array} 延伸後的座標陣列
        */
@@ -219,9 +219,9 @@
         const unitDy = dy / length;
 
         // 延伸倍數
-        const extendFactor = 5;
+        const extendFactor = 8;
 
-        // 計算延伸距離（原長度的5倍）
+        // 計算延伸距離（原長度的8倍）
         const extendDistance = length * extendFactor;
 
         // 從起點沿反方向延伸
@@ -260,7 +260,7 @@
           // 解析 JSON
           const rawData = await runwayResponse.json();
 
-          // 延伸每條線段 5 倍，並保存原始座標
+          // 延伸每條線段 8 倍，並保存原始座標
           if (rawData.features) {
             rawData.features.forEach((feature) => {
               if (feature.geometry && feature.geometry.type === 'LineString') {
@@ -285,7 +285,7 @@
 
           console.log('[MapTab] 跑道線路數據載入成功');
           console.log('  - 線路數量:', runwayData.value.features?.length || 0);
-          console.log('  - 已將每條線延伸 5 倍長度');
+          console.log('  - 已將每條線延伸 8 倍長度');
 
           return true;
         } catch (error) {

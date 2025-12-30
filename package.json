@@ -1,8 +1,8 @@
 {
-  "name": "runway",
+  "name": "30DayMapChallenge-27_Boundaries",
   "version": "0.1.0",
   "private": true,
-  "homepage": "https://kevin7261.github.io/runway",
+  "homepage": "https://kevin7261.github.io/30DayMapChallenge-27_Boundaries",
   "scripts": {
     "serve": "vue-cli-service serve --port 8080",
     "build": "vue-cli-service build",
