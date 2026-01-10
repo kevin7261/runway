@@ -190,6 +190,13 @@
       const runwayData = ref(null);
 
       /**
+       * 總統得票地圖 GeoJSON 數據
+       * 來源：總統_得票地圖_合併.geojson
+       * @type {Ref<Object|null>}
+       */
+      const presidentData = ref(null);
+
+      /**
        * 🔧 延伸線段 8 倍長度
        * @param {Array} coordinates - LineString 座標陣列
        * @returns {Array} 延伸後的座標陣列
@@ -295,6 +302,43 @@
       };
 
       /**
+       * 📥 載入總統得票地圖 GeoJSON 數據
+       */
+      const loadPresidentData = async () => {
+        try {
+          console.log('[MapTab] 開始載入總統得票地圖 GeoJSON 數據...');
+
+          // 載入總統得票地圖 GeoJSON 檔案
+          const presidentResponse = await fetch(
+            `${process.env.BASE_URL}data/geojson/總統_得票地圖_合併.geojson`
+          );
+
+          // 檢查響應
+          if (!presidentResponse.ok) {
+            throw new Error(
+              `總統得票地圖數據載入失敗: HTTP ${presidentResponse.status}`
+            );
+          }
+
+          // 解析 JSON
+          const rawData = await presidentResponse.json();
+
+          presidentData.value = rawData;
+
+          console.log('[MapTab] 總統得票地圖數據載入成功');
+          console.log(
+            '  - 區域數量:',
+            presidentData.value.features?.length || 0
+          );
+
+          return true;
+        } catch (error) {
+          console.error('[MapTab] 總統得票地圖數據載入失敗:', error);
+          return false;
+        }
+      };
+
+      /**
        * 🛠️ 創建工具提示元素
        */
       const createTooltip = () => {
@@ -320,6 +364,7 @@
 
       /**
        * 📐 自動調整地圖視圖以顯示所有物件
+       * 確保所有圖層（runway、president）使用相同的投影和座標系統
        */
       const fitMapToFeatures = () => {
         if (!projection || !runwayData.value || !svg) {
@@ -335,22 +380,30 @@
           // 添加 10% 的邊距
           const padding = Math.min(width, height) * 0.1;
 
+          // 合併所有 GeoJSON 數據，確保視圖包含所有圖層
+          const allFeatures = {
+            type: 'FeatureCollection',
+            features: [...(runwayData.value?.features || [])],
+          };
+
           // 使用 fitExtent 方法自動調整投影以適應所有特徵
+          // 使用相同的投影參數確保座標系統一致
           projection.fitExtent(
             [
               [padding, padding],
               [width - padding, height - padding],
             ],
-            runwayData.value
+            allFeatures
           );
 
-          // 更新路徑生成器
+          // 更新路徑生成器 - 確保所有圖層使用相同的投影
           path = d3.geoPath().projection(projection);
 
-          // 重新繪製延伸的路徑
+          // 重新繪製所有圖層，確保它們使用相同的投影
+          // 1. 重新繪製延伸的跑道路徑
           g.selectAll('.runway-extended').attr('d', path);
 
-          // 重新繪製原始長度的路徑（黃色）
+          // 2. 重新繪製原始長度的跑道路徑（黃色）
           g.selectAll('.runway-original').attr('d', (d) => {
             const originalFeature = {
               type: 'Feature',
@@ -362,9 +415,15 @@
             return path(originalFeature);
           });
 
+          // 3. 重新繪製總統得票地圖邊界線（使用相同的投影）
+          if (presidentData.value) {
+            g.selectAll('.president-boundary').attr('d', path);
+          }
+
           console.log('[MapTab] 地圖視圖已調整以顯示所有物件');
           console.log('  - 視圖尺寸:', width, 'x', height);
           console.log('  - 邊距:', padding);
+          console.log('  - 所有圖層使用相同的投影和座標系統');
         } catch (error) {
           console.error('[MapTab] 調整視圖失敗:', error);
         }
@@ -459,6 +518,45 @@
       };
 
       /**
+       * 🗺️ 繪製總統得票地圖邊界線
+       */
+      const drawPresidentBoundaries = () => {
+        if (!g || !presidentData.value) {
+          console.error(
+            '[MapTab] 無法繪製總統得票地圖邊界線: g=',
+            !!g,
+            'presidentData=',
+            !!presidentData.value
+          );
+          return;
+        }
+
+        try {
+          console.log('[MapTab] 開始繪製總統得票地圖邊界線 GeoJSON');
+
+          // 繪製總統得票地圖的邊界線
+          g.selectAll('.president-boundary')
+            .data(presidentData.value.features)
+            .enter()
+            .append('path')
+            .attr('d', path)
+            .attr('class', 'president-boundary')
+            .attr('fill', 'none')
+            .attr('stroke', '#CCCCCC') // 淺灰色邊界線
+            .attr('stroke-width', '1pt') // 1pt 線條寬度
+            .attr('stroke-opacity', 1.0);
+
+          console.log('[MapTab] 總統得票地圖邊界線 GeoJSON 繪製完成');
+          console.log(
+            '  - 區域數量:',
+            presidentData.value.features?.length || 0
+          );
+        } catch (error) {
+          console.error('[MapTab] 總統得票地圖邊界線 GeoJSON 繪製失敗:', error);
+        }
+      };
+
+      /**
        * 🎛️ 切換顯示模式
        * @param {string} mode - 'map' 或 'grid'
        */
@@ -468,9 +566,13 @@
         console.log('[MapTab] 切換顯示模式: map (grid 已停用)');
 
         if (displayMode.value === 'map') {
-          // 地圖模式：需要地圖投影，載入跑道線路
+          // 地圖模式：需要地圖投影，載入跑道線路和總統得票地圖
+          // 確保所有圖層使用相同的投影和座標系統
           if (!runwayData.value) {
             await loadRunwayData();
+          }
+          if (!presidentData.value) {
+            await loadPresidentData();
           }
           // 清除舊的 SVG（如果從其他模式切換過來）
           if (svg && !projection) {
@@ -491,6 +593,7 @@
               }
 
               // 創建 SVG 和地圖投影
+              // 使用與 runway 相同的投影參數，確保座標系統一致
               svg = d3
                 .select(mapContainer.value)
                 .append('svg')
@@ -500,8 +603,8 @@
 
               projection = d3
                 .geoMercator()
-                .center([121, 23.5])
-                .scale(12000)
+                .center([121, 23.5]) // 與 runway 相同的中心點
+                .scale(12000) // 與 runway 相同的縮放比例
                 .translate([width / 2, height / 2]);
 
               path = d3.geoPath().projection(projection);
@@ -528,8 +631,17 @@
               svg.call(zoom.transform, d3.zoomIdentity);
             }
           }
-          // 繪製跑道線路
+
+          // 按照圖層順序繪製，確保所有圖層使用相同的投影
+          // 1. 繪製總統得票地圖邊界線（底層，使用相同的投影）
+          if (presidentData.value) {
+            drawPresidentBoundaries();
+          }
+
+          // 2. 繪製跑道線路（最上層，使用相同的投影）
           drawRunway();
+
+          console.log('[MapTab] 所有圖層已繪製，使用相同的投影和座標系統');
         }
       };
 
@@ -612,16 +724,22 @@
 
         // 根據顯示模式載入不同的數據
         if (displayMode.value === 'map') {
-          // 地圖模式：載入跑道線路數據
+          // 地圖模式：載入跑道線路數據和總統得票地圖數據
           console.log('[MapTab] 開始載入地圖模式數據...');
           const runwayLoaded = await loadRunwayData();
+          const presidentLoaded = await loadPresidentData();
 
           if (!runwayLoaded) {
             console.error('[MapTab] 無法載入跑道線路數據');
             return;
           }
 
+          if (!presidentLoaded) {
+            console.warn('[MapTab] 無法載入總統得票地圖數據，將繼續繪製其他圖層');
+          }
+
           console.log('[MapTab] 數據載入完成，開始創建地圖');
+          console.log('[MapTab] 確保所有圖層使用相同的投影和座標系統');
 
           const tryCreateMap = async () => {
             if (attempts >= maxAttempts) {
@@ -633,9 +751,18 @@
             console.log(`[MapTab] 嘗試創建地圖 (${attempts}/${maxAttempts})`);
 
             if (createMap()) {
-              console.log('[MapTab] 地圖創建成功，開始繪製圖層');
-              // 繪製跑道線路
+              console.log('[MapTab] 地圖創建成功，開始繪製圖層（使用相同投影）');
+
+              // 按照圖層順序繪製，確保座標系統一致
+              // 1. 繪製總統得票地圖邊界線（底層，使用相同的投影）
+              if (presidentLoaded && presidentData.value) {
+                drawPresidentBoundaries();
+              }
+
+              // 2. 繪製跑道線路（最上層，使用相同的投影）
               drawRunway();
+
+              console.log('[MapTab] 所有圖層已繪製，確保使用相同的投影和座標系統');
             } else {
               console.log('[MapTab] 地圖創建失敗，100ms 後重試');
               setTimeout(tryCreateMap, 100);
