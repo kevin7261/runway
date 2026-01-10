@@ -7,4 +7,10 @@ module.exports = defineConfig({
     port: 8080,
     host: 'localhost',
   },
+  chainWebpack: (config) => {
+    config.plugin('html').tap((args) => {
+      args[0].title = 'Runway';
+      return args;
+    });
+  },
 });
